@@ -2,3 +2,4 @@ state.json
 nns-proposals-bot
 proposer_whitelist.txt
 .env
+state/

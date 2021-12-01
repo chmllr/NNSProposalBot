@@ -15,4 +15,8 @@ RUN go build -o /bot
 
 ENV TOKEN=
 
+VOLUME /state
+
+WORKDIR /state
+
 CMD /bot

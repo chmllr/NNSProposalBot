@@ -4,6 +4,8 @@ services:
   nns-proposal-bot:
     image: ica/nns-proposal-bot
     build: .
+    volumes:
+      - "./state:/state"
     environment:
       TOKEN: ${TOKEN}
 
