@@ -13,4 +13,6 @@ COPY *.go .
 
 RUN go build -o /bot
 
+ENV TOKEN=
+
 CMD /bot
