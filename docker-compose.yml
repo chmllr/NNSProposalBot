@@ -1,0 +1,7 @@
+version: "3.9"
+
+services:
+  nns-proposal-bot:
+    image: ica/nns-proposal-bot
+    build: .
+
