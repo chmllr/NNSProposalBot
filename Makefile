@@ -2,4 +2,4 @@ build:
 	docker-compose build
 
 up: build
-	docker-compose up
+	docker-compose up --force-recreate
