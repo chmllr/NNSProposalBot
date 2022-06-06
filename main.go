@@ -16,28 +16,29 @@ import (
 )
 
 var (
-	URL                        = "https://ic-api.internetcomputer.org/api/v3/proposals?limit=100"
+	URL                        = "https://cb3bp-ciaaa-aaaai-qkw4q-cai.raw.ic0.app"
 	STATE_PATH                 = "state.json"
 	NNS_POLL_INTERVALL         = 5 * time.Minute
 	STATE_PERSISTENCE_INTERVAL = 5 * time.Minute
 	MAX_TOPIC_LENGTH           = 50
 	MAX_BLOCKED_TOPICS         = 30
 	MAX_SUMMARY_LENGTH         = 2048
-	TOPIC_GOVERNANCE           = "topic_governance"
-	ALL_EXCEPT_GOVERNANCE      = "all_except_governance"
+	TOPIC_GOVERNANCE           = "Governance"
+	NO_SPAM                    = "NoSpam"
+	ALL_EXCEPT_GOVERNANCE      = "AllButGovernance"
 )
 
 type Proposal struct {
 	Title    string `json:"title"`
 	Topic    string `json:"topic"`
-	Id       int64  `json:"proposal_id"`
+	Id       uint64 `json:"id"`
 	Summary  string `json:"summary"`
-	Action   string `json:"action"`
-	Proposer string `json:"proposer"`
+	Proposer uint64 `json:"proposer"`
+	Spam     bool   `json:"spam"`
 }
 
 type State struct {
-	LastSeenProposal int64                     `json:"last_seen_proposal"`
+	LastSeenProposal uint64                    `json:"last_seen_proposal"`
 	ChatIds          map[int64]map[string]bool `json:"chat_ids"`
 	lock             sync.RWMutex
 }
@@ -81,7 +82,7 @@ func (s *State) restore() {
 }
 
 // This is an atomic compare and swap for a new seen proposal id.
-func (s *State) setNewLastSeenId(id int64) (updated bool) {
+func (s *State) setNewLastSeenId(id uint64) (updated bool) {
 	s.lock.Lock()
 	if s.LastSeenProposal < id {
 		s.LastSeenProposal = id
@@ -102,7 +103,7 @@ func (s *State) removeChatId(id int64) {
 // Subscribes the chat id.
 func (s *State) addChatId(id int64) {
 	s.lock.Lock()
-	s.ChatIds[id] = map[string]bool{"topic_exchange_rate": true}
+	s.ChatIds[id] = map[string]bool{}
 	s.lock.Unlock()
 	log.Println("Added user", id, "to subscribers")
 }
@@ -126,13 +127,14 @@ func (s *State) unblockTopic(id int64, topic string) {
 	s.lock.Lock()
 	blacklist := s.ChatIds[id]
 	if blacklist != nil {
+		fmt.Println("%+v, %v, %v", blacklist, id, topic)
 		delete(blacklist, topic)
 	}
 	s.lock.Unlock()
 }
 
 // Returns the list of chat ids which should be notified about `topic`.
-func (s *State) chatIdsForTopic(topic string) (res []int64) {
+func (s *State) chatIdsForTopic(topic string, spam bool) (res []int64) {
 	s.lock.RLock()
 	for id, blacklist := range s.ChatIds {
 		// Skip if no blacklist or topic is blacklisted.
@@ -141,6 +143,9 @@ func (s *State) chatIdsForTopic(topic string) (res []int64) {
 		}
 		// Skip if only governance topic is whitelisted and the topic is not governance.
 		if blacklist[ALL_EXCEPT_GOVERNANCE] && topic != TOPIC_GOVERNANCE {
+			continue
+		}
+		if blacklist[NO_SPAM] && spam {
 			continue
 		}
 		res = append(res, id)
@@ -189,7 +194,7 @@ func main() {
 		}
 		var msg string
 		id := update.Message.Chat.ID
-		words := strings.Split(strings.ToLower(update.Message.Text), " ")
+		words := strings.Split(update.Message.Text, " ")
 		if len(words) == 0 {
 			continue
 		}
@@ -203,10 +208,10 @@ func main() {
 			msg = "Unsubscribed."
 		case "/block", "/unblock":
 			if len(words) != 2 {
-				msg = fmt.Sprintf("Please specify the topic")
+				msg = fmt.Sprintf("Please specify one topic")
 				break
 			}
-			topic := strings.Replace(words[1], "#", "", -1)
+			topic := words[1]
 			switch cmd {
 			case "/block":
 				state.blockTopic(id, topic)
@@ -217,6 +222,9 @@ func main() {
 		case "/governance_only":
 			state.blockTopic(id, ALL_EXCEPT_GOVERNANCE)
 			msg = "From now on, you'll only see the governance proposals."
+		case "/no_spam":
+			state.blockTopic(id, NO_SPAM)
+			msg = "From now on, you won't see spam proposals from known spam neurons. Make sure you follow a neuron, which automatically rejects them!"
 		case "/blacklist":
 			msg = state.blockedTopics(id)
 		default:
@@ -230,7 +238,8 @@ func getHelpMessage() string {
 	return "Enter /stop to unsubscribe (/start to resubscribe). " +
 		"Use /block or /unblock to block or unblock proposals with a certain a topic; " +
 		"use /blacklist to display the list of blocked topics. " +
-		"Use /governance_only command to only receive governance proposals."
+		"Use /governance_only command to only receive governance proposals." +
+		"Use /no_spam command to exclude spam proposals."
 }
 
 func persist(state *State) {
@@ -277,7 +286,7 @@ func fetchProposalsAndNotify(bot *tgbotapi.BotAPI, state *State) {
 			text := fmt.Sprintf("<b>%s</b>\n\nProposer: %s\n%s\n#%s\n\nhttps://dashboard.internetcomputer.org/proposal/%d",
 				proposal.Title, proposal.Proposer, summary, proposal.Topic, proposal.Id)
 
-			ids := state.chatIdsForTopic(strings.ToLower(proposal.Topic))
+			ids := state.chatIdsForTopic(strings.ToLower(proposal.Topic), proposal.Spam)
 			for _, id := range ids {
 				msg := tgbotapi.NewMessage(id, text)
 				msg.ParseMode = tgbotapi.ModeHTML
