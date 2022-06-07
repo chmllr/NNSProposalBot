@@ -127,7 +127,6 @@ func (s *State) unblockTopic(id int64, topic string) {
 	s.lock.Lock()
 	blacklist := s.ChatIds[id]
 	if blacklist != nil {
-		fmt.Println("%+v, %v, %v", blacklist, id, topic)
 		delete(blacklist, topic)
 	}
 	s.lock.Unlock()
