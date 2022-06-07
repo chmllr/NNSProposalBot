@@ -260,18 +260,16 @@ func fetchProposalsAndNotify(bot *tgbotapi.BotAPI, state *State) {
 		if err != nil {
 			log.Println("Couldn't read the response body:", err)
 		}
-		var jsonResp struct {
-			Data []Proposal `json:"data"`
-		}
-		if err := json.Unmarshal(body, &jsonResp); err != nil {
+
+		var proposals []Proposal
+		if err := json.Unmarshal(body, &proposals); err != nil {
 			fmt.Println("Couldn't parse the response as JSON:", err)
 			continue
 		}
 
-		proposals := jsonResp.Data
 		sort.Slice(proposals, func(i, j int) bool { return proposals[i].Id < proposals[j].Id })
 
-		for _, proposal := range jsonResp.Data {
+		for _, proposal := range proposals {
 			if !state.setNewLastSeenId(proposal.Id) {
 				continue
 			}
@@ -283,7 +281,7 @@ func fetchProposalsAndNotify(bot *tgbotapi.BotAPI, state *State) {
 			if len(summary) > 0 {
 				summary = "\n" + summary + "\n"
 			}
-			text := fmt.Sprintf("<b>%s</b>\n\nProposer: %s\n%s\n#%s\n\nhttps://dashboard.internetcomputer.org/proposal/%d",
+			text := fmt.Sprintf("<b>%s</b>\n\nProposer: %d\n%s\n#%s\n\nhttps://dashboard.internetcomputer.org/proposal/%d",
 				proposal.Title, proposal.Proposer, summary, proposal.Topic, proposal.Id)
 
 			ids := state.chatIdsForTopic(strings.ToLower(proposal.Topic), proposal.Spam)
