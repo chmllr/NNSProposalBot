@@ -283,7 +283,7 @@ func fetchProposalsAndNotify(bot *tgbotapi.BotAPI, state *State) {
 			text := fmt.Sprintf("<b>%s</b>\n\nProposer: %d\n%s\n#%s\n\nhttps://dashboard.internetcomputer.org/proposal/%d",
 				proposal.Title, proposal.Proposer, summary, proposal.Topic, proposal.Id)
 
-			ids := state.chatIdsForTopic(strings.ToLower(proposal.Topic), proposal.Spam)
+			ids := state.chatIdsForTopic(proposal.Topic, proposal.Spam)
 			for _, id := range ids {
 				msg := tgbotapi.NewMessage(id, text)
 				msg.ParseMode = tgbotapi.ModeHTML
