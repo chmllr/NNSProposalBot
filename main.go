@@ -280,7 +280,7 @@ func fetchProposalsAndNotify(bot *tgbotapi.BotAPI, state *State) {
 			if len(summary) > 0 {
 				summary = "\n" + summary + "\n"
 			}
-			text := fmt.Sprintf("<b>%s</b>\n\nProposer: %d\n%s\n#%s\n\nhttps://dashboard.internetcomputer.org/proposal/%d",
+			text := fmt.Sprintf("<b>%s</b>\n\nProposer: %d\n%s\n#%s\n\nhttps://nns.ic0.app/proposal/?proposal=%d",
 				proposal.Title, proposal.Proposer, summary, proposal.Topic, proposal.Id)
 
 			ids := state.chatIdsForTopic(proposal.Topic, proposal.Spam)
