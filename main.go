@@ -24,7 +24,6 @@ var (
 	MAX_BLOCKED_TOPICS         = 30
 	MAX_SUMMARY_LENGTH         = 2048
 	TOPIC_GOVERNANCE           = "Governance"
-	NO_SPAM                    = "NoSpam"
 	ALL_EXCEPT_GOVERNANCE      = "AllButGovernance"
 )
 
@@ -34,7 +33,6 @@ type Proposal struct {
 	Id       uint64 `json:"id"`
 	Summary  string `json:"summary"`
 	Proposer uint64 `json:"proposer"`
-	Spam     bool   `json:"spam"`
 }
 
 type State struct {
@@ -133,7 +131,7 @@ func (s *State) unblockTopic(id int64, topic string) {
 }
 
 // Returns the list of chat ids which should be notified about `topic`.
-func (s *State) chatIdsForTopic(topic string, spam bool) (res []int64) {
+func (s *State) chatIdsForTopic(topic string) (res []int64) {
 	s.lock.RLock()
 	for id, blacklist := range s.ChatIds {
 		// Skip if no blacklist or topic is blacklisted.
@@ -142,9 +140,6 @@ func (s *State) chatIdsForTopic(topic string, spam bool) (res []int64) {
 		}
 		// Skip if only governance topic is whitelisted and the topic is not governance.
 		if blacklist[ALL_EXCEPT_GOVERNANCE] && topic != TOPIC_GOVERNANCE {
-			continue
-		}
-		if blacklist[NO_SPAM] && spam {
 			continue
 		}
 		res = append(res, id)
@@ -221,9 +216,6 @@ func main() {
 		case "/governance_only":
 			state.blockTopic(id, ALL_EXCEPT_GOVERNANCE)
 			msg = "From now on, you'll only see the governance proposals."
-		case "/no_spam":
-			state.blockTopic(id, NO_SPAM)
-			msg = "From now on, you won't see spam proposals from known spam neurons. Make sure you follow a neuron, which automatically rejects them!"
 		case "/blacklist":
 			msg = state.blockedTopics(id)
 		default:
@@ -237,8 +229,7 @@ func getHelpMessage() string {
 	return "Enter /stop to unsubscribe (/start to resubscribe). " +
 		"Use /block or /unblock to block or unblock proposals with a certain a topic; " +
 		"use /blacklist to display the list of blocked topics. " +
-		"Use /governance_only command to only receive governance proposals." +
-		"Use /no_spam command to exclude spam proposals."
+		"Use /governance_only command to only receive governance proposals."
 }
 
 func persist(state *State) {
@@ -283,7 +274,7 @@ func fetchProposalsAndNotify(bot *tgbotapi.BotAPI, state *State) {
 			text := fmt.Sprintf("<b>%s</b>\n\nProposer: %d\n%s\n#%s\n\nhttps://nns.ic0.app/proposal/?proposal=%d",
 				proposal.Title, proposal.Proposer, summary, proposal.Topic, proposal.Id)
 
-			ids := state.chatIdsForTopic(proposal.Topic, proposal.Spam)
+			ids := state.chatIdsForTopic(proposal.Topic)
 			for _, id := range ids {
 				msg := tgbotapi.NewMessage(id, text)
 				msg.ParseMode = tgbotapi.ModeHTML
